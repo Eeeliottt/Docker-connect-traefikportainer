@@ -1,0 +1,125 @@
+version: '3'
+services:
+  traefik:
+    image: traefik
+    ports:
+      - 80:80
+      - 8080:8080
+      - 443:443
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - nt-traefik
+   
+    command:
+      - --api.insecure=true
+      - --providers.docker
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+    labels:
+      - traefik.http.middlewares.auth.basicauth.users=admin:$$2y$$05$$7Y3Xgs/VUz3ALPG9MW5rTeZEhHp5vx5RKCmZersIFW7n.6QhwU7hK
+      - traefik.http.routers.traefik.middlewares=auth
+      - traefik.http.routers.traefik.rule=Host(`traefik.helha.lan`)
+      - traefik.http.routers.traefik.entrypoints=web
+      - traefik.http.services.traefik.loadbalancer.server.port=8080
+
+  portainer:
+    image: portainer/portainer-ce
+    volumes:
+      - data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - 9000:9000
+      - 9443:9443
+    networks:
+      - nt-traefik
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.portainer.rule=Host(`portainer.helha.lan`)
+      - traefik.http.routers.portainer.entrypoints=web
+      - traefik.http.services.portainer.loadbalancer.server.port=9000
+
+
+networks:
+  nt-traefik:
+    external: true
+
+volumes:
+  data:
+
+
+
+#nodered
+
+version: '3'
+services:
+  nodered:
+    image: nodered/node-red
+    networks:
+      - nt-traefik
+      - nt-nodered
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=nt-traefik
+      - traefik.http.routers.nodered.rule=Host(`nodered.helha.lan`)
+      - traefik.http.routers.nodered.entrypoints=web
+      - traefik.http.services.nodered.loadbalancer.server.port=1880
+  mysql:
+    image: mysql:5.7
+    environment:
+      - MYSQL_ROOT_PASSWORD=main01
+      - MYSQL_DATABASE=recap
+    volumes:
+      - ./mysql:/var/lib/mysql
+    networks:
+      - nt-nodered
+
+ 
+
+
+networks:
+  nt-traefik:
+    external: true
+  nt-nodered:
+    driver: bridge
+
+
+version: '3'
+
+services:
+  db:
+    image: mysql:5.7
+    volumes:
+      - db_data:/var/lib/mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_DATABASE_PASSWORD}
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: wordpress
+      MYSQL_PASSWORD: wordpress
+    networks:
+      - nt-db 
+
+  wordpress:
+    image: wordpress:latest
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.wp1.rule=Host(`wp1.helha.lan`)
+      - traefik.http.routers.wp1.entrypoints=web
+      - traefik.http.services.wp1.loadbalancer.server.port=80
+    networks:
+      - nt-traefik
+      - nt-db 
+
+volumes:
+    db_data:
+  
+
+networks:
+  nt-traefik:
+    external: true
+  nt-db:
+    driver: bridge
